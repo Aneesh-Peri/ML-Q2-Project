@@ -1,11 +1,19 @@
 import numpy as np
 import pandas as pd
 from collections import Counter
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
-import matplotlib.pyplot as plt
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+
 
 class DepthAdaptiveTree:
-    def __init__(self, epsilon_0=0.01, alpha=0.15, max_depth=None, min_samples_split=3, min_samples_leaf=1, max_features=None):
+    def __init__(
+        self,
+        epsilon_0=0.01,
+        alpha=0.15,
+        max_depth=None,
+        min_samples_split=3,
+        min_samples_leaf=1,
+        max_features=None
+    ):
         self.epsilon_0 = epsilon_0
         self.alpha = alpha
         self.max_depth = max_depth
@@ -22,25 +30,44 @@ class DepthAdaptiveTree:
     def information_gain(self, y, y_left, y_right):
         H_parent = self.entropy(y)
         n = len(y)
-        return H_parent - (len(y_left)/n * self.entropy(y_left) + len(y_right)/n * self.entropy(y_right))
+        return H_parent - (
+            len(y_left) / n * self.entropy(y_left) +
+            len(y_right) / n * self.entropy(y_right)
+        )
 
     def best_split(self, X, y):
         best_ig = 0
         best_feature = None
         best_threshold = None
-        features = np.random.choice(X.shape[1], self.max_features, replace=False) if self.max_features else range(X.shape[1])
+
+        features = (
+            np.random.choice(X.shape[1], self.max_features, replace=False)
+            if self.max_features else range(X.shape[1])
+        )
+
         for feature in features:
             thresholds = np.unique(X[:, feature])
             for t in thresholds:
                 left_mask = X[:, feature] <= t
                 right_mask = ~left_mask
-                if np.sum(left_mask) < self.min_samples_leaf or np.sum(right_mask) < self.min_samples_leaf:
+
+                if (
+                    np.sum(left_mask) < self.min_samples_leaf or
+                    np.sum(right_mask) < self.min_samples_leaf
+                ):
                     continue
-                ig = self.information_gain(y, y[left_mask], y[right_mask])
+
+                ig = self.information_gain(
+                    y,
+                    y[left_mask],
+                    y[right_mask]
+                )
+
                 if ig > best_ig:
                     best_ig = ig
                     best_feature = feature
                     best_threshold = t
+
         return best_feature, best_threshold, best_ig
 
     def epsilon(self, depth):
@@ -49,20 +76,30 @@ class DepthAdaptiveTree:
     def build(self, X, y, depth):
         if len(set(y)) == 1:
             return Counter(y).most_common(1)[0][0]
+
         if self.max_depth is not None and depth >= self.max_depth:
             return Counter(y).most_common(1)[0][0]
+
         if len(y) < self.min_samples_split:
             return Counter(y).most_common(1)[0][0]
+
         feature, threshold, ig = self.best_split(X, y)
+
         if feature is None or ig < self.epsilon(depth):
             return Counter(y).most_common(1)[0][0]
+
         left_idx = X[:, feature] <= threshold
         right_idx = ~left_idx
-        return {"feature": feature, "threshold": threshold, "left": self.build(X[left_idx], y[left_idx], depth+1),
-                "right": self.build(X[right_idx], y[right_idx], depth+1)}
+
+        return {
+            "feature": feature,
+            "threshold": threshold,
+            "left": self.build(X[left_idx], y[left_idx], depth + 1),
+            "right": self.build(X[right_idx], y[right_idx], depth + 1)
+        }
 
     def fit(self, X, y):
-        self.tree = self.build(X, y, 0)
+        self.tree = self.build(X, y, depth=0)
 
     def predict_one(self, x, node):
         if not isinstance(node, dict):
@@ -86,7 +123,10 @@ class DepthAdaptiveTree:
             node = self.tree
         if not isinstance(node, dict):
             return depth
-        return max(self.tree_depth(node["left"], depth+1), self.tree_depth(node["right"], depth+1))
+        return max(
+            self.tree_depth(node["left"], depth + 1),
+            self.tree_depth(node["right"], depth + 1)
+        )
 
 class DepthAdaptiveRF:
     def __init__(self, n_estimators=75, epsilon_0=0.01, alpha=0.15, random_state=42):
@@ -101,16 +141,24 @@ class DepthAdaptiveRF:
         self.trees = []
         n = len(X)
         max_features = int(np.sqrt(X.shape[1]))
-        for _ in range(self.n_estimators):
+
+        for i in range(self.n_estimators):
             idx = np.random.choice(n, n, replace=True)
-            tree = DepthAdaptiveTree(epsilon_0=self.epsilon_0, alpha=self.alpha, max_features=max_features)
+            tree = DepthAdaptiveTree(
+                epsilon_0=self.epsilon_0,
+                alpha=self.alpha,
+                max_features=max_features
+            )
             tree.fit(X[idx], y[idx])
             self.trees.append(tree)
 
     def predict(self, X):
         preds = np.array([tree.predict(X) for tree in self.trees])
-        return np.apply_along_axis(lambda x: np.bincount(x, minlength=2).argmax(), axis=0, arr=preds)
-
+        return np.apply_along_axis(
+            lambda x: np.bincount(x, minlength=2).argmax(),
+            axis=0,
+            arr=preds
+        )
     def average_node_count(self):
         return np.mean([tree.count_nodes() for tree in self.trees])
 
@@ -118,44 +166,57 @@ class DepthAdaptiveRF:
         return np.mean([tree.tree_depth() for tree in self.trees])
 
 
+def print_tree(node, feature_names, depth=0):
+    indent = "  " * depth
+
+    if not isinstance(node, dict):
+        print(f"{indent}Predict -> {node}")
+        return
+
+    feature = feature_names[node["feature"]]
+    threshold = node["threshold"]
+
+    print(f"{indent}if {feature} <= {threshold:.4f}:")
+    print_tree(node["left"], feature_names, depth + 1)
+
+    print(f"{indent}else:  # {feature} > {threshold:.4f}")
+    print_tree(node["right"], feature_names, depth + 1)
+
 train_df = pd.read_csv("heart_disease_train.csv")
 test_df = pd.read_csv("heart_disease_test.csv")
+
 target_col = "target"
+
 X_train = train_df.drop(columns=[target_col]).values
 y_train = train_df[target_col].values
+
 X_test = test_df.drop(columns=[target_col]).values
 y_test = test_df[target_col].values
 
-model = DepthAdaptiveRF(n_estimators=75, epsilon_0=0.09, alpha=0.15)
+model = DepthAdaptiveRF(
+    n_estimators=75,
+    epsilon_0=0.09,
+    alpha=0.15
+)
+
 model.fit(X_train, y_train)
+
 train_preds = model.predict(X_train)
 test_preds = model.predict(X_test)
 
-print("Depth-Adaptive Pre-Pruned Random Forest (Fixed & Tuned)\n")
+print("\nDepth-Adaptive Pre-Pruned Random Forest\n")
 print(f"Train Accuracy: {accuracy_score(y_train, train_preds) * 100:.2f}%")
 print(f"Test Accuracy:  {accuracy_score(y_test, test_preds) * 100:.2f}%\n")
+
 print("Classification Metrics (Test Set)")
 print(f"Precision: {precision_score(y_test, test_preds):.3f}")
 print(f"Recall:    {recall_score(y_test, test_preds):.3f}")
 print(f"F1-score:  {f1_score(y_test, test_preds):.3f}\n")
+
 print("Model Complexity Statistics")
 print(f"Average Node Count: {model.average_node_count():.2f}")
 print(f"Average Tree Depth: {model.average_tree_depth():.2f}")
+print("\n===== FULL DECISION TREE (Tree 1 of Forest) =====\n")
 
-cm = confusion_matrix(y_test, test_preds)
-fig, ax = plt.subplots(figsize=(5,5))
-im = ax.imshow(cm, cmap="Blues")
-ax.set_xticks([0, 1])
-ax.set_yticks([0, 1])
-ax.set_xticklabels(["No Disease", "Disease"])
-ax.set_yticklabels(["No Disease", "Disease"])
-ax.set_xlabel("Predicted Label")
-ax.set_ylabel("True Label")
-ax.set_title("Confusion Matrix")
-
-for i in range(cm.shape[0]):
-    for j in range(cm.shape[1]):
-        ax.text(j, i, cm[i,j], ha="center", va="center", fontsize=12)
-
-plt.tight_layout()
-plt.show()
+feature_names = train_df.drop(columns=[target_col]).columns.tolist()
+print_tree(model.trees[0].tree, feature_names)
