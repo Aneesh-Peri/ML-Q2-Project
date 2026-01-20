@@ -1,6 +1,7 @@
 import pandas as pd
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.metrics import accuracy_score, confusion_matrix, precision_score, recall_score, f1_score
+import matplotlib.pyplot as plt
 from sklearn.tree import export_text
 
 train_data = pd.read_csv("heart_disease_train.csv")
@@ -36,12 +37,6 @@ print(f"Precision: {precision_score(y_test, test_preds):.3f}")
 print(f"Recall:    {recall_score(y_test, test_preds):.3f}")
 print(f"F1-score:  {f1_score(y_test, test_preds):.3f}\n")
 
-print("Confusion Matrix (Train):")
-print(confusion_matrix(y_train, train_preds))
-
-print("\nConfusion Matrix (Test):")
-print(confusion_matrix(y_test, test_preds))
-
 depths = [tree.tree_.max_depth for tree in rf.estimators_]
 nodes = [tree.tree_.node_count for tree in rf.estimators_]
 
@@ -55,3 +50,21 @@ tree_text = export_text(
     feature_names=list(X_train.columns)
 )
 print(tree_text)
+
+cm_test = confusion_matrix(y_test, test_preds)
+
+fig, ax = plt.subplots(figsize=(5,5))
+im = ax.imshow(cm_test, cmap="Blues")
+ax.set_xticks([0, 1])
+ax.set_yticks([0, 1])
+ax.set_xticklabels(["No Disease", "Disease"])
+ax.set_yticklabels(["No Disease", "Disease"])
+ax.set_xlabel("Predicted Label")
+ax.set_ylabel("True Label")
+ax.set_title("Confusion Matrix (Test Set)")
+for i in range(cm_test.shape[0]):
+    for j in range(cm_test.shape[1]):
+        color = "white" if cm_test[i,j] > cm_test.max()/2 else "black"
+        ax.text(j, i, cm_test[i,j], ha="center", va="center", color=color, fontsize=12)
+plt.tight_layout()
+plt.show()

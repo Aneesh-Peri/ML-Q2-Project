@@ -1,7 +1,8 @@
 import numpy as np
 import pandas as pd
 from collections import Counter
-from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score
+from sklearn.metrics import accuracy_score, precision_score, recall_score, f1_score, confusion_matrix
+import matplotlib.pyplot as plt
 
 
 class DepthAdaptiveTree:
@@ -220,3 +221,21 @@ print("\n===== FULL DECISION TREE (Tree 1 of Forest) =====\n")
 
 feature_names = train_df.drop(columns=[target_col]).columns.tolist()
 print_tree(model.trees[0].tree, feature_names)
+
+cm = confusion_matrix(y_test, test_preds)
+fig, ax = plt.subplots(figsize=(5,5))
+im = ax.imshow(cm, cmap="Blues")
+ax.set_xticks([0, 1])
+ax.set_yticks([0, 1])
+ax.set_xticklabels(["No Disease", "Disease"])
+ax.set_yticklabels(["No Disease", "Disease"])
+ax.set_xlabel("Predicted Label")
+ax.set_ylabel("True Label")
+ax.set_title("Confusion Matrix")
+
+for i in range(cm.shape[0]):
+    for j in range(cm.shape[1]):
+        ax.text(j, i, cm[i,j], ha="center", va="center", fontsize=12)
+
+plt.tight_layout()
+plt.show()
